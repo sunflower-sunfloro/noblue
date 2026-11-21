@@ -60,6 +60,9 @@ these lines, and the real path to noblue in the last one:
     Name=noblue
     Exec=/path/to/noblue watch
 
+Write the path out in full, starting with `/`. The short forms `~` and
+`$HOME` may not be filled in there, and then noblue does not start.
+
 ## Building
 
 noblue is one file of fasmg source (fasmg is the flat assembler g). It
