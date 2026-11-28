@@ -110,6 +110,7 @@ GETPROPERTIES  = 0C02064B9h             ; list a screen driver's settings (OBJ_G
 GETPROPERTY    = 0C04064AAh             ; a setting's name (GETPROPERTY)
 GETPROPBLOB    = 0C01064ACh             ; a setting's block of data: here, a newer color table (GETPROPBLOB)
 OBJECT_CRTC    = 0CCCCCCCCh             ; "this number names a screen driver" (DRM_MODE_OBJECT_CRTC)
+DROP_MASTER    = 641Fh                  ; give back the card's master role (DROP_MASTER)
 
 ; The key file's numbers.
 FAMILY_LOCAL   = 256                    ; a key for one computer, named beside it
@@ -1059,11 +1060,21 @@ card:
     call unchecked                      ; any other failure: it is there, and we cannot look
     jmp .done
 
+.opened:
+    mov [fd], eax
+
+    ; A card has one "master", the program in charge of it: X, as a
+    ; rule. If no program is, as when X has stepped aside for a text
+    ; console, Linux makes whoever opens the card next its master. While
+    ; noblue held that, X could not take the card back, and the screen
+    ; could stay black. So noblue gives it back at once. If noblue never
+    ; had it, Linux just says no. Either answer is fine.
+    mov esi, DROP_MASTER
+    call drm
+
     ; Ask for the list of its screen drivers. The block "resources" is
     ; the form Linux wants filled in: where to put the numbers, and how
     ; many we have room for. Linux writes back how many there are.
-.opened:
-    mov [fd], eax
     lea rdi, [resources]
     xor eax, eax
     mov ecx, 64 / 8

@@ -63,6 +63,13 @@ these lines, and the real path to noblue in the last one:
 Write the path out in full, starting with `/`. The short forms `~` and
 `$HOME` may not be filled in there, and then noblue does not start.
 
+Use the start-up folder, and nothing else. Do not put noblue in a file
+the desktop runs and waits for, like `~/.xprofile`, or in the login
+screen's own settings, like LightDM's `display-setup-script`. noblue
+watch never ends, so the desktop or the login screen would wait for it
+forever. And plain noblue answers 1 when its check fails, which can
+make the login screen stop and start again without end.
+
 ## Building
 
 noblue is one file of fasmg source (fasmg is the flat assembler g). It
