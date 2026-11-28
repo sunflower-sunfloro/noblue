@@ -12,6 +12,15 @@ Night lights and color filters only turn blue down, and they dim green
 as well. noblue turns blue off and leaves green at full strength, so
 text stays bright and sharp.
 
+## Where noblue lives now
+
+This GitHub copy of noblue gets no updates after January 5, 2027. Its
+maker is moving away from GitHub, which Microsoft owns. For questions,
+bug reports, or to say how noblue worked for you, please post in the
+flat assembler forum's noblue thread:
+https://board.flatassembler.net/topic.php?t=24444. Where noblue goes
+next will be posted there too.
+
 ## How it works
 
 Your graphics card has a color table for each screen. It is the card's
