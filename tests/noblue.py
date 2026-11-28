@@ -27,7 +27,8 @@ The checks, by group:
 - Linux's check: blue found in one entry; no table; a table unset, too
   big, cut, or swapped; a card that will not answer; a list of cards
   that breaks off. Each must answer 1. These are also the only checks
-  where noblue answers 0, for cards that are truly right.
+  where noblue answers 0, for cards that are truly right. And each card,
+  once open, must first be asked to take back its master role.
 - The watch: it says each change once, keeps setting the tables after
   a failure, and ends only when X ends.
 
@@ -224,6 +225,7 @@ class Server:
 
 GETRESOURCES, GETCRTC, GETGAMMA = 0xC04064A0, 0xC06864A1, 0xC02064A4     # what noblue asks of a card
 GETPROPERTY, GETPROPBLOB, GETPROPERTIES = 0xC04064AA, 0xC01064AC, 0xC02064B9
+DROP_MASTER = 0x641F                                                    # give back the master role
 SETTINGS = b'DEGAMMA_LUT', b'GAMMA_LUT_SIZE', b'CTM', b'GAMMA_LUT'      # a screen driver's, as Linux names them
 
 def lut(size, blue=0, at=None):
@@ -264,6 +266,8 @@ class Card:
         put = lambda form, at, *values: mem.write(block + at, struct.pack(form, *values))
         if request in self.refuse:
             return -22
+        if request == DROP_MASTER:              # as if noblue had been made master, and gave it back
+            return 0
         if request == GETRESOURCES:
             where, room = get('<Q', 8)[0], get('<I', 36)[0]
             if room >= len(self.drivers):
@@ -339,6 +343,7 @@ def ptrace_allowed():
 
 TRACING = ptrace_allowed()
 OPENINGS = []                                   # how each stand-in card was opened, in every run
+FIRSTS = []                                     # and what was asked of it first
 
 def traced(words, env, cards, spoil=None):
     """Run noblue with stand-in cards, and give back its answer and its
@@ -371,6 +376,7 @@ def traced(words, env, cards, spoil=None):
     timer.start()
     LIBC.ptrace(SETOPTIONS, pid, None, 1 | 0x100000)     # its calls told from signals; ended if this test ends
     mem, opened, regs, entering, answer, sig = None, {}, Registers(), True, None, 0
+    fresh = set()                               # cards opened and not yet asked anything
     while True:
         LIBC.ptrace(SYSCALL, pid, None, sig)
         status = os.waitpid(pid, 0)[1]
@@ -390,6 +396,9 @@ def traced(words, env, cards, spoil=None):
                 regs.orig_rax = 2 ** 64 - 1
                 LIBC.ptrace(SETREGS, pid, None, ctypes.byref(regs))
             if call == 16 and regs.rdi in opened:       # a request to a card: Linux's own call skipped
+                if regs.rdi in fresh:                   # the first since the card was opened
+                    FIRSTS.append(regs.rsi)
+                    fresh.discard(regs.rdi)
                 answer = opened[regs.rdi].answer(regs.rsi, regs.rdx, mem)
                 regs.orig_rax = 2 ** 64 - 1
                 LIBC.ptrace(SETREGS, pid, None, ctypes.byref(regs))
@@ -401,6 +410,7 @@ def traced(words, env, cards, spoil=None):
                 del opened[regs.rax]
             else:
                 OPENINGS.append(how & 3)        # how the card was opened: 0 is for reading only
+                fresh.add(regs.rax)
         elif answer is not None:
             regs.rax = answer % 2 ** 64
             LIBC.ptrace(SETREGS, pid, None, ctypes.byref(regs))
@@ -741,10 +751,15 @@ said = checked('the watch: blue 0, then blue 7, then blue 0 again: each change s
                server=Server(sizes=(256,), rounds=4))
 need(said.split('\n')[:-1] == ['noblue: ' + PASSED, 'noblue: 1 screen, 0 with no color table, blue at most 7',
                               'noblue: ' + PASSED], 'the watch\'s three lines: %r' % said)
+checked('a card that will not take back the master role, as when noblue never had it: that answer '
+        'passed by, answer 0', 0, PASSED, driver([lut(256)]), refuse=(DROP_MASTER,))
 
 need(len(OPENINGS) > 15 and set(OPENINGS) == {0},
      'every stand-in card, in every run above, opened for reading only: %d openings, kinds %r'
      % (len(OPENINGS), sorted(set(OPENINGS))))
+need(len(FIRSTS) == len(OPENINGS) and set(FIRSTS) == {DROP_MASTER},
+     'every stand-in card, in every run above, first asked to take back the master role: %d of %d, '
+     'asked %r' % (len(FIRSTS), len(OPENINGS), sorted(hex(n) for n in set(FIRSTS))))
 
 shutil.rmtree(work, ignore_errors=True)
 print('%d checks, %d failed' % (checks, fails))
